@@ -26,7 +26,7 @@
         }
 
         .container {
-            max-width: 1080px;
+            max-width: 1000px;
             margin: auto;
         }
 
@@ -66,17 +66,15 @@
 
         circle {
             fill: none;
-            stroke-width: 14;
+            stroke-width: 10;
             transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             stroke-dasharray: 251.2;
         }
 
-        /* Fundo do círculo agora é a cor de borda (vazio) */
         .bg-circle {
             stroke: var(--border);
         }
 
-        /* Círculo da Receita (Verde) */
         #c-receita {
             stroke: var(--accent);
             stroke-dashoffset: 251.2;
@@ -150,6 +148,7 @@
 
         .txt-in {
             color: var(--accent) !important;
+            font-weight: bold;
         }
 
         .txt-top1 {
@@ -191,13 +190,32 @@
             margin-top: 20px;
             font-size: 0.8rem;
         }
+
+        .history-divider {
+            font-size: 0.6rem;
+            color: #64748b;
+            text-align: center;
+            margin: 15px 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+            line-height: 0.1em;
+        }
+
+        .history-divider span {
+            background: var(--card);
+            padding: 0 10px;
+        }
     </style>
 </head>
 
 <body>
 
     <div class="container">
-
+        <header style="text-align:center; margin-bottom: 20px;">
+            <h1 style="font-weight:200; letter-spacing:4px; font-size: 1.5rem;">CONTROLE <b
+                    style="color:var(--accent)">FINANCEIRO</b></h1>
+        </header>
 
         <div class="grid">
             <div class="card">
@@ -207,7 +225,7 @@
                     <input type="number" id="valor" placeholder="Valor R$" step="0.01" required>
                     <input type="date" id="data" required>
                     <select id="tipo">
-                        <option value="in">Receita (+)</option>
+                        <option value="in" selected>Receita (+)</option>
                         <option value="out">Despesa (-)</option>
                     </select>
                     <select id="origem">
@@ -242,7 +260,7 @@
             </div>
 
             <div class="card">
-                <h2>Top 3 & Histórico</h2>
+                <h2>Histórico Consolidado</h2>
                 <div id="history" class="history"></div>
                 <button class="btn-export" onclick="exportarLista()">EXPORTAR LISTA (TXT)</button>
             </div>
@@ -250,7 +268,7 @@
     </div>
 
     <script>
-        let db = JSON.parse(localStorage.getItem('emerald_ultra_v12')) || [];
+        let db = JSON.parse(localStorage.getItem('emerald_ultra_v13')) || [];
 
         function setDate() {
             const input = document.getElementById('data');
@@ -267,7 +285,7 @@
             document.getElementById('res-in').innerText = fmt(incomes);
             document.getElementById('res-out').innerText = fmt(expenses);
 
-            localStorage.setItem('emerald_ultra_v12', JSON.stringify(db));
+            localStorage.setItem('emerald_ultra_v13', JSON.stringify(db));
             atualizarCirculo(incomes, expenses);
             renderList();
         }
@@ -276,14 +294,12 @@
             const circ = 251.2;
             const cRec = document.getElementById('c-receita');
 
-            // 1. O círculo verde (receita) preenche proporcional ao saldo positivo
             if (totalIn > 0) {
-                cRec.style.strokeDashoffset = 0; // Preenche tudo de verde
+                cRec.style.strokeDashoffset = 0;
             } else {
-                cRec.style.strokeDashoffset = circ; // Fica vazio se não houver receita
+                cRec.style.strokeDashoffset = circ;
             }
 
-            // 2. Lógica das despesas (Top 3) "comendo" o verde
             const top3Despesas = db.filter(t => t.tipo === 'out').sort((a, b) => b.valor - a.valor).slice(0, 3);
             const totalReferencia = totalIn > 0 ? totalIn : (totalOut || 1);
 
@@ -305,9 +321,15 @@
 
         function renderList() {
             const historyDiv = document.getElementById('history');
+
+            // Separa os dados
+            const receitas = db.filter(t => t.tipo === 'in').reverse();
+            const despesas = db.filter(t => t.tipo === 'out').sort((a, b) => new Date(b.data) - new Date(a.data));
+
+            // Ids do Top 3 para cores
             const top3Ids = db.filter(t => t.tipo === 'out').sort((a, b) => b.valor - a.valor).slice(0, 3).map(t => t.id);
 
-            historyDiv.innerHTML = db.slice().reverse().map(t => {
+            const gerarHTML = (t) => {
                 let classeCor = t.tipo === 'in' ? 'txt-in' : '';
                 if (t.tipo === 'out') {
                     const rank = top3Ids.indexOf(t.id);
@@ -315,7 +337,6 @@
                     else if (rank === 1) classeCor = 'txt-top2';
                     else if (rank === 2) classeCor = 'txt-top3';
                 }
-
                 const tagCartao = t.origem !== 'dinheiro' ? `<span class="tag-card">${t.origem.toUpperCase()}</span>` : '';
 
                 return `
@@ -330,7 +351,19 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            };
+
+            let htmlFinal = "";
+            if (receitas.length > 0) {
+                htmlFinal += `<div class="history-divider"><span>Receitas</span></div>`;
+                htmlFinal += receitas.map(gerarHTML).join('');
+            }
+            if (despesas.length > 0) {
+                htmlFinal += `<div class="history-divider"><span>Fluxo de Despesas</span></div>`;
+                htmlFinal += despesas.map(gerarHTML).join('');
+            }
+
+            historyDiv.innerHTML = htmlFinal || "<p style='text-align:center; color:#64748b; font-size:0.8rem;'>Nenhum lançamento.</p>";
         }
 
         document.getElementById('finForm').onsubmit = (e) => {
@@ -345,17 +378,22 @@
             };
             db.push(newItem);
 
-            setDate();
+            // Limpa apenas descrição e valor, mantém o resto estático
+            document.getElementById('desc').value = '';
+            document.getElementById('valor').value = '';
+
             update();
         };
 
         function deleteItem(id) {
-            db = db.filter(t => t.id !== id);
-            update();
+            if (confirm("Excluir este lançamento?")) {
+                db = db.filter(t => t.id !== id);
+                update();
+            }
         }
 
         function resetarSistema() {
-            if (confirm("Deseja apagar todos os lançamentos?")) {
+            if (confirm("ATENÇÃO: Deseja apagar todos os dados do sistema?")) {
                 db = [];
                 update();
             }
